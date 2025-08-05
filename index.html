@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grabfinder</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+    }
+    #search {
+      padding: 1em;
+      background: #f0f0f0;
+    }
+    #search input {
+      width: 100%;
+      padding: 0.5em;
+      font-size: 1em;
+    }
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="search">
+    <input type="text" id="searchInput" placeholder="Name oder Grabnummer eingeben..." />
+  </div>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Tabletop.js (für Google Sheets Anbindung) -->
+  <script src="https://cdn.jsdelivr.net/npm/tabletop@1.6.1/tabletop.min.js"></script>
+
+  <script>
+    const map = L.map('map').setView([48.137154, 11.57549], 18); // Mittelpunkt einstellen
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap-Mitwirkende'
+    }).addTo(map);
+
+    let graeber = [];
+    const markerMap = {};
+
+    function initializeMarkers(data) {
+      graeber = data;
+
+      data.forEach(grab => {
+        const lat = parseFloat(grab.lat);
+        const lng = parseFloat(grab.lng);
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+          const marker = L.marker([lat, lng]).addTo(map);
+          marker.bindPopup(\`<strong>\${grab.name}</strong><br>Geboren: \${grab.geburtsdatum}<br>Gestorben: \${grab.sterbedatum}\`);
+          markerMap[grab.id.toLowerCase()] = marker;
+          markerMap[grab.name.toLowerCase()] = marker;
+        }
+      });
+    }
+
+    // Google Sheets einbinden
+    Tabletop.init({
+      key: 'DEINE_GOOGLE_SHEET_ID_HIER_EINFÜGEN',
+      callback: initializeMarkers,
+      simpleSheet: true
+    });
+
+    document.getElementById('searchInput').addEventListener('input', function (e) {
+      const value = e.target.value.toLowerCase().trim();
+      if (!value) return;
+
+      const results = graeber.filter(grab =>
+        grab.name.toLowerCase().includes(value) || grab.id.toLowerCase().includes(value)
+      );
+
+      if (results.length === 1) {
+        const marker = markerMap[results[0].id.toLowerCase()];
+        if (marker) {
+          map.setView(marker.getLatLng(), 19);
+          marker.openPopup();
+        }
+      } else if (results.length > 1) {
+        alert('Mehrere Ergebnisse gefunden:\\n' + results.map(g => \`\${g.id}: \${g.name}\`).join('\\n'));
+      } else {
+        // kein Treffer
+      }
+    });
+  </script>
+</body>
+</html>
