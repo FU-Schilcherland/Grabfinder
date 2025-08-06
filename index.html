@@ -1,98 +1,74 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
   <title>Grabfinder</title>
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-    }
-    #search {
-      padding: 1em;
-      background: #f0f0f0;
-    }
-    #search input {
-      width: 100%;
-      padding: 0.5em;
-      font-size: 1em;
-    }
-    #map {
-      height: 90vh;
-      width: 100%;
-    }
+    body { font-family: sans-serif; padding: 1em; }
+    input { padding: 0.5em; width: 100%; margin-bottom: 1em; font-size: 1em; }
+    .grab { padding: 1em; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 1em; }
+    .grab strong { display: block; font-size: 1.2em; margin-bottom: 0.3em; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/tabletop@1.6.4/tabletop.min.js"></script>
 </head>
 <body>
-  <div id="search">
-    <input type="text" id="searchInput" placeholder="Name oder Grabnummer eingeben..." />
-  </div>
-  <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <h1>🔎 Grabfinder</h1>
+  <input type="text" id="suche" placeholder="Nach Name, Reihe oder Nummer suchen...">
 
-  <!-- Tabletop.js (für Google Sheets Anbindung) -->
-  <script src="https://cdn.jsdelivr.net/npm/tabletop@1.6.1/tabletop.min.js"></script>
+  <div id="liste">Lade Grabdaten...</div>
 
   <script>
-    const map = L.map('map').setView([48.137154, 11.57549], 18); // Mittelpunkt einstellen
+    const sheetID = '1FZ0QQlnNznFJ0h4csXynz8b0gtgrDE_eNRSXV5ixeJw';
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap-Mitwirkende'
-    }).addTo(map);
-
-    let graeber = [];
-    const markerMap = {};
-
-    function initializeMarkers(data) {
-      graeber = data;
-
-      data.forEach(grab => {
-        const lat = parseFloat(grab.lat);
-        const lng = parseFloat(grab.lng);
-
-        if (!isNaN(lat) && !isNaN(lng)) {
-          const marker = L.marker([lat, lng]).addTo(map);
-          marker.bindPopup(\`<strong>\${grab.name}</strong><br>Geboren: \${grab.geburtsdatum}<br>Gestorben: \${grab.sterbedatum}\`);
-          markerMap[grab.id.toLowerCase()] = marker;
-          markerMap[grab.name.toLowerCase()] = marker;
-        }
+    function ladeDaten() {
+      Tabletop.init({
+        key: sheetID,
+        callback: function(data) {
+          zeigeGräber(data);
+        },
+        simpleSheet: true
       });
     }
 
-    // Google Sheets einbinden
-    Tabletop.init({
-      key: 'DEINE_GOOGLE_SHEET_ID_HIER_EINFÜGEN',
-      callback: initializeMarkers,
-      simpleSheet: true
-    });
+    function zeigeGräber(gräber) {
+      const liste = document.getElementById('liste');
+      const suchfeld = document.getElementById('suche');
 
-    document.getElementById('searchInput').addEventListener('input', function (e) {
-      const value = e.target.value.toLowerCase().trim();
-      if (!value) return;
+      function aktualisiereAnzeige() {
+        const suchbegriff = suchfeld.value.toLowerCase();
+        const gefiltert = gräber.filter(g =>
+          g.Name.toLowerCase().includes(suchbegriff) ||
+          (g.Reihe && g.Reihe.toLowerCase().includes(suchbegriff)) ||
+          (g.Grabnummer && g.Grabnummer.toLowerCase().includes(suchbegriff))
+        );
 
-      const results = graeber.filter(grab =>
-        grab.name.toLowerCase().includes(value) || grab.id.toLowerCase().includes(value)
-      );
+        liste.innerHTML = '';
 
-      if (results.length === 1) {
-        const marker = markerMap[results[0].id.toLowerCase()];
-        if (marker) {
-          map.setView(marker.getLatLng(), 19);
-          marker.openPopup();
+        if (gefiltert.length === 0) {
+          liste.innerHTML = '<p>Keine Gräber gefunden.</p>';
         }
-      } else if (results.length > 1) {
-        alert('Mehrere Ergebnisse gefunden:\\n' + results.map(g => \`\${g.id}: \${g.name}\`).join('\\n'));
-      } else {
-        // kein Treffer
+
+        gefiltert.forEach(g => {
+          const div = document.createElement('div');
+          div.className = 'grab';
+          div.innerHTML = `
+            <strong>${g.Name}</strong>
+            Reihe: ${g.Reihe || '-'}<br>
+            Grabnummer: ${g.Grabnummer || '-'}<br>
+            Beschreibung: ${g.Beschreibung || '-'}
+          `;
+          liste.appendChild(div);
+        });
       }
-    });
+
+      suchfeld.addEventListener('input', aktualisiereAnzeige);
+      aktualisiereAnzeige();
+    }
+
+    ladeDaten();
   </script>
+
 </body>
 </html>
